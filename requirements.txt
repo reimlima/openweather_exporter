@@ -1,0 +1,4 @@
+prometheus-client==0.7.1
+pyowm==3.0.0
+PyYAML==5.1.2
+systemd>=0.16.1

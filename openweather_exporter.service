@@ -1,0 +1,10 @@
+[Unit]
+Description=Open Weather Exporter
+Wants=network.target network-online.target
+After=network.target network-online.target
+
+[Service]
+Restart=always
+ExecStart=/path/to/script/openweather_exporter --port 8080 --config /path/to/config/openweather_exporter.yml
+[Install]
+WantedBy=default.target

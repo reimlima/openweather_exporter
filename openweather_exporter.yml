@@ -1,0 +1,11 @@
+---
+api_key: 16df56b5dbcb058e339a5885ac85ff5d # md5 hash that means "your_api_key_here" :^P
+location:
+    cities:
+        rio_de_janeiro: 3451189
+        sao_paulo: 3448439
+        new_york_city: 5128581
+        london: 2643743
+        paris: 6455259
+        moscow: 524901
+        tokyo: 1850147

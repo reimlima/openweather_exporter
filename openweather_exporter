@@ -1,0 +1,130 @@
+#!/usr/bin/env python3.7
+# -*- coding: utf-8 -*-
+"""
+Prometheus Exporter for Open Weather API
+"""
+import os
+import sys
+import time
+import re
+import logging
+import argparse
+from unicodedata import normalize
+import yaml
+from pyowm import OWM
+from prometheus_client import start_http_server
+from prometheus_client.core import GaugeMetricFamily, REGISTRY
+from systemd.journal import JournaldLogHandler
+
+ow_metric_dict = {}
+script_name = os.path.basename(sys.argv[0])
+script_instance = os.uname()[1]
+
+# Dealing with command line options
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    '-p',
+    '--port',
+    help='Port, default: 8080',
+    nargs='?',
+    const=8080,
+    type=int,
+    default=8080)
+
+parser.add_argument(
+    '-c',
+    '--config',
+    help='Path to config file')
+
+args = parser.parse_args()
+
+if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
+port_number = args.port
+app_config = args.config
+
+# Handle with config file
+
+# Loggin to Journalctl
+logger = logging.getLogger(script_name)
+journaldHandler = JournaldLogHandler()
+journaldHandler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+logger.addHandler(journaldHandler)
+logger.setLevel(logging.INFO)
+
+try:
+    config = yaml.full_load(open(app_config))
+    ow_api_key = config['api_key']
+    city_dict = dict(config['location']['cities'])
+
+except OSError as exit_error:
+    logger.error("no configuration file found: %s", exit_error.strerror)
+    sys.exit(1)
+
+class OpenWeatherCollector(object):
+    """
+    Class to be called from mais function and working as a server, like prometheus_client examples
+    """
+    def collect(self):
+        """
+        Function that does almost everything, like prometheus_client examples
+        """
+        count = 0
+        city_ids = []
+        ow_manager = OWM(ow_api_key)
+        ow_weather_manager = ow_manager.weather_manager()
+        logger.info("starting collection of weather data from city list")
+        for key in city_dict:
+            city_ids.append(city_dict[key])
+
+        ow_observation = ow_weather_manager.weather_at_ids(city_ids)
+        ow_weathers_list = [ obs.weather for obs in ow_observation ]
+
+        for ow_weather in ow_weathers_list:
+            # Location Metrics
+            city = ow_observation[count].location.name
+            logger.info("collection location data for %s", city)
+            city_name_accent = normalize('NFKD', city).encode('ASCII','ignore').decode('ASCII')
+            city_name_uppercase = city_name_accent.lower()
+            city_name = re.sub(' ', '_', city_name_uppercase)
+            ow_metric_dict.update({'openweather_location_lat': ow_observation[count].location.lat})
+            ow_metric_dict.update({'openweather_location_lon': ow_observation[count].location.lon})
+            #ow_metric_dict.update({'openweather_location_name': city_name})
+
+            # Weather Metrics
+            logger.info("collection weather data for %s", city)
+            ow_weather_dict_wind = ow_weather.wind()
+            ow_weather_dict_temperature = ow_weather.temperature('celsius')
+            ow_metric_dict.update({'openweather_cloudiness': ow_weather.clouds})
+            ow_metric_dict.update({'openweather_humidity': ow_weather.humidity})
+            ow_metric_dict.update({'openweather_temperature': ow_weather_dict_temperature['temp']})
+            ow_metric_dict.update({'openweather_pressure': ow_weather.pressure['press']})
+            ow_metric_dict.update({'openweather_sunrise': ow_weather.sunrise_time()})
+            ow_metric_dict.update({'openweather_sunset': ow_weather.sunset_time()})
+            ow_metric_dict.update({'openweather_visibility': ow_weather.visibility_distance})
+            ow_metric_dict.update({'openweather_windspeed': ow_weather_dict_wind['speed']})
+            ow_metric_dict.update({'openweather_winddegree': ow_weather_dict_wind['deg']})
+
+            for dict_key in ow_metric_dict:
+                help_text = 'collecting {} metrics for {}'.format(dict_key, city_name)
+                ow_metric_value = ow_metric_dict[dict_key]
+                ow_metric_constructor = GaugeMetricFamily(
+                    dict_key, help_text, labels=['type', 'instance', 'job', 'city'])
+                ow_metric_constructor.add_metric(
+                    ['openweather_metrics', script_instance, script_name, city_name],
+                    ow_metric_value)
+                yield ow_metric_constructor
+            count += 1
+
+        logger.info("collection done, taking a nap")
+
+if __name__ == '__main__':
+    logger.info("starting app %s", script_name)
+    REGISTRY.register(OpenWeatherCollector())
+    start_http_server(port_number)
+    while True:
+        time.sleep(60)
