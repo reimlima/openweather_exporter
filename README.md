@@ -34,8 +34,8 @@ You have to fill these fields in the [YAML](https://en.wikipedia.org/wiki/YAML) 
 | **-h, --help** | No | Show help like below |
 
 ```sh
-# gtoj
-usage: gtoj [-h] [-p [PORT]] [-c CONFIG]
+# openweather_exporter
+usage: openweather_exporter [-h] [-p [PORT]] [-c CONFIG]
 
 optional arguments:
   -h, --help            show this help message and exit
