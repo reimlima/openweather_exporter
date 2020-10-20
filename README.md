@@ -49,7 +49,7 @@ optional arguments:
 
 Add the job below to your Prometheus Configuration File to scrape the app metrics
 
-### Fortinet Fortigate
+### Open Weather
 
 ```
 - job_name: 'open_weather'
