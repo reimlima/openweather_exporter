@@ -27,7 +27,7 @@ You have to fill these fields in the [YAML](https://en.wikipedia.org/wiki/YAML) 
 
 > :warning: You have to find those ID's in the [City List] available in the Open Weather's website.
 
-| Opção | Obrigatório? | Descrição |
+| Option | Mandatory? | Description |
 |-------|--------------|-----------|
 | **-p, --port** | No. Default: 8080 | App Port |
 | **-c, --config** | Yes | Path to Config File |
