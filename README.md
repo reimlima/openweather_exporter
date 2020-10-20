@@ -8,8 +8,8 @@ A python prometheus exporter which collect data from [Open Weather's API]
 
 ## Requirements
 
-* python >= 3.7*
-* Open Weather API Key*
+* **python >= 3.7**
+* **Open Weather API Key**
 
 ## Resolving Dependencies
 
