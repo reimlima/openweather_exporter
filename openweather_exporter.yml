@@ -2,10 +2,24 @@
 api_key: 16df56b5dbcb058e339a5885ac85ff5d # md5 hash that means "your_api_key_here" :^P
 location:
     cities:
-        rio_de_janeiro: 3451189
-        sao_paulo: 3448439
-        new_york_city: 5128581
-        london: 2643743
-        paris: 6455259
-        moscow: 524901
-        tokyo: 1850147
+        rio de janeiro:
+            lat: -22.9068
+            lon: -43.1729
+        sao paulo:
+            lat: -23.5505
+            lon: -46.6333
+        new york city:
+            lat: 40.7128
+            lon: -74.0060
+        london:
+            lat: 51.5074
+            lon: -0.1278
+        paris:
+            lat: 48.8566
+            lon: 2.3522
+        moscow:
+            lat: 55.7558
+            lon: 37.6173
+        tokyo:
+            lat: 35.6762
+            lon: 139.6503
