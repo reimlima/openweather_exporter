@@ -11,7 +11,7 @@ import logging
 import argparse
 from unicodedata import normalize
 import yaml
-from pyowm import OWM
+from pyowm.owm import OWM
 from prometheus_client import start_http_server
 from prometheus_client.core import GaugeMetricFamily, REGISTRY
 from systemd.journal import JournaldLogHandler
@@ -73,52 +73,57 @@ class OpenWeatherCollector(object):
         """
         Function that does almost everything, like prometheus_client examples
         """
-        count = 0
-        city_ids = []
         ow_manager = OWM(ow_api_key)
         ow_weather_manager = ow_manager.weather_manager()
         logger.info("starting collection of weather data from city list")
-        for key in city_dict:
-            city_ids.append(city_dict[key])
 
-        ow_observation = ow_weather_manager.weather_at_ids(city_ids)
-        ow_weathers_list = [ obs.weather for obs in ow_observation ]
+        for configured_city_name, configured_city_value in city_dict.items():
+            # Support new config format: city -> {lat: float, lon: float}
+            # If old format (numeric city id) is detected, skip with a warning
+            if isinstance(configured_city_value, dict) and 'lat' in configured_city_value and 'lon' in configured_city_value:
+                lat = configured_city_value['lat']
+                lon = configured_city_value['lon']
+            else:
+                logger.warning(
+                    "city '%s' configured with legacy city ID '%s'. Please provide 'lat' and 'lon' to use One Call API.",
+                    configured_city_name, str(configured_city_value)
+                )
+                continue
 
-        for ow_weather in ow_weathers_list:
+            # Normalize city label
+            city_label = re.sub(' ', '_', normalize('NFKD', configured_city_name).encode('ASCII','ignore').decode('ASCII').lower())
+
             # Location Metrics
-            city = ow_observation[count].location.name
-            logger.info("collection location data for %s", city)
-            city_name_accent = normalize('NFKD', city).encode('ASCII','ignore').decode('ASCII')
-            city_name_uppercase = city_name_accent.lower()
-            city_name = re.sub(' ', '_', city_name_uppercase)
-            ow_metric_dict.update({'openweather_location_lat': ow_observation[count].location.lat})
-            ow_metric_dict.update({'openweather_location_lon': ow_observation[count].location.lon})
-            #ow_metric_dict.update({'openweather_location_name': city_name})
+            logger.info("collection location data for %s", configured_city_name)
+            ow_metric_dict.update({'openweather_location_lat': lat})
+            ow_metric_dict.update({'openweather_location_lon': lon})
 
-            # Weather Metrics
-            logger.info("collection weather data for %s", city)
-            ow_weather_dict_wind = ow_weather.wind()
-            ow_weather_dict_temperature = ow_weather.temperature('celsius')
-            ow_metric_dict.update({'openweather_cloudiness': ow_weather.clouds})
-            ow_metric_dict.update({'openweather_humidity': ow_weather.humidity})
+            # Weather Metrics via One Call (current)
+            logger.info("collection weather data for %s", configured_city_name)
+            one_call = ow_weather_manager.one_call(lat=lat, lon=lon, units='metric')
+            current_weather = one_call.current
+
+            ow_weather_dict_wind = current_weather.wind()
+            ow_weather_dict_temperature = current_weather.temperature('celsius')
+            ow_metric_dict.update({'openweather_cloudiness': current_weather.clouds})
+            ow_metric_dict.update({'openweather_humidity': current_weather.humidity})
             ow_metric_dict.update({'openweather_temperature': ow_weather_dict_temperature['temp']})
-            ow_metric_dict.update({'openweather_pressure': ow_weather.pressure['press']})
-            ow_metric_dict.update({'openweather_sunrise': ow_weather.sunrise_time()})
-            ow_metric_dict.update({'openweather_sunset': ow_weather.sunset_time()})
-            ow_metric_dict.update({'openweather_visibility': ow_weather.visibility_distance})
-            ow_metric_dict.update({'openweather_windspeed': ow_weather_dict_wind['speed']})
-            ow_metric_dict.update({'openweather_winddegree': ow_weather_dict_wind['deg']})
+            ow_metric_dict.update({'openweather_pressure': current_weather.pressure['press']})
+            ow_metric_dict.update({'openweather_sunrise': current_weather.sunrise_time()})
+            ow_metric_dict.update({'openweather_sunset': current_weather.sunset_time()})
+            ow_metric_dict.update({'openweather_visibility': current_weather.visibility_distance})
+            ow_metric_dict.update({'openweather_windspeed': ow_weather_dict_wind.get('speed')})
+            ow_metric_dict.update({'openweather_winddegree': ow_weather_dict_wind.get('deg')})
 
             for dict_key in ow_metric_dict:
-                help_text = 'collecting {} metrics for {}'.format(dict_key, city_name)
+                help_text = 'collecting {} metrics for {}'.format(dict_key, city_label)
                 ow_metric_value = ow_metric_dict[dict_key]
                 ow_metric_constructor = GaugeMetricFamily(
                     dict_key, help_text, labels=['type', 'instance', 'job', 'city'])
                 ow_metric_constructor.add_metric(
-                    ['openweather_metrics', script_instance, script_name, city_name],
+                    ['openweather_metrics', script_instance, script_name, city_label],
                     ow_metric_value)
                 yield ow_metric_constructor
-            count += 1
 
         logger.info("collection done, taking a nap")
 
